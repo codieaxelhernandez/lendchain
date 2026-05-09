@@ -4,6 +4,12 @@ import "./App.css";
 
 const CONTRACT_ADDRESS = "0xe676b80D6d4F975cC9E4E705959963802faAD0B9";
 
+const BORROWER_ADDRESS =
+  "0xDAC4389AccE4a693477921C1FB0c45756f89c6A0".toLowerCase();
+
+const LENDER_ADDRESS =
+  "0x82A0367aF28d42762E6557485cFe54e43c59A1f2".toLowerCase();
+
 const CONTRACT_ABI = [
   "function createLoanRequest(uint256 _amount, uint256 _interestRate, uint256 _durationDays, string memory _purpose) public",
   "function fundLoan(uint256 _loanId) public payable",
@@ -19,10 +25,37 @@ function App() {
   const [account, setAccount] = useState("");
   const [contract, setContract] = useState(null);
   const [loans, setLoans] = useState([]);
+  const [transactions, setTransactions] = useState([]);
 
   const [amount, setAmount] = useState("");
   const [durationDays, setDurationDays] = useState("");
   const [purpose, setPurpose] = useState("");
+
+  const resetApp = () => {
+    setIsSignedIn(false);
+    setSelectedRole("");
+    setAccount("");
+    setContract(null);
+    setLoans([]);
+    setAmount("");
+    setDurationDays("");
+    setPurpose("");
+    setTransactions([]);
+  };
+
+  const isCorrectAccountForRole = (role, walletAddress) => {
+    const currentAddress = walletAddress.toLowerCase();
+
+    if (role === "borrower") {
+      return currentAddress === BORROWER_ADDRESS;
+    }
+
+    if (role === "lender") {
+      return currentAddress === LENDER_ADDRESS;
+    }
+
+    return false;
+  };
 
   const switchToSepolia = async () => {
     if (!window.ethereum) {
@@ -75,9 +108,20 @@ function App() {
         method: "eth_requestAccounts"
       });
 
+      const selectedAccount = accounts[0];
+
+      if (!isCorrectAccountForRole(selectedRole, selectedAccount)) {
+        alert(
+          selectedRole === "borrower"
+            ? "This Borrower side is only for the borrower account. Please switch to the borrower MetaMask account."
+            : "This Lender side is only for the lender account. Please switch to the lender MetaMask account."
+        );
+        return;
+      }
+
       const lendChain = await setupContract();
 
-      setAccount(accounts[0]);
+      setAccount(selectedAccount);
       setContract(lendChain);
       setIsSignedIn(true);
 
@@ -90,14 +134,7 @@ function App() {
   };
 
   const logout = () => {
-    setIsSignedIn(false);
-    setSelectedRole("");
-    setAccount("");
-    setContract(null);
-    setLoans([]);
-    setAmount("");
-    setDurationDays("");
-    setPurpose("");
+    resetApp();
   };
 
   const switchAccount = async () => {
@@ -112,21 +149,9 @@ function App() {
         params: [{ eth_accounts: {} }]
       });
 
-      const accounts = await window.ethereum.request({
-        method: "eth_requestAccounts"
-      });
+      alert("Account changed. Please choose your role and sign in again.");
 
-      await switchToSepolia();
-
-      const lendChain = await setupContract();
-
-      setAccount(accounts[0]);
-      setContract(lendChain);
-
-      const data = await lendChain.getAllLoans();
-      setLoans(data);
-
-      alert("Account switched successfully.");
+      resetApp();
     } catch (error) {
       console.error("Switch account error:", error);
       alert("Account switch cancelled or failed. Please try again.");
@@ -146,6 +171,16 @@ function App() {
     }
   };
 
+  const addTransactionHash = (type, hash) => {
+    const newTransaction = {
+      type,
+      hash,
+      date: new Date().toLocaleString()
+    };
+
+    setTransactions((prev) => [newTransaction, ...prev]);
+  };
+
   const calculateInterestRate = (days) => {
     const duration = Number(days);
 
@@ -161,6 +196,17 @@ function App() {
     try {
       if (!contract) {
         alert("Please sign in first.");
+        return;
+      }
+
+      if (selectedRole !== "borrower") {
+        alert("Only the borrower can create a loan request.");
+        return;
+      }
+
+      if (!isCorrectAccountForRole("borrower", account)) {
+        alert("Wrong account. Please use the borrower MetaMask account.");
+        resetApp();
         return;
       }
 
@@ -191,6 +237,8 @@ function App() {
         purpose
       );
 
+      addTransactionHash("Create Loan", transaction.hash);
+
       await transaction.wait();
 
       alert("Loan request created successfully.");
@@ -213,11 +261,24 @@ function App() {
         return;
       }
 
+      if (selectedRole !== "lender") {
+        alert("Only the lender can fund a loan.");
+        return;
+      }
+
+      if (!isCorrectAccountForRole("lender", account)) {
+        alert("Wrong account. Please use the lender MetaMask account.");
+        resetApp();
+        return;
+      }
+
       await switchToSepolia();
 
       const transaction = await contract.fundLoan(loanId, {
         value: loanAmount
       });
+
+      addTransactionHash("Fund Loan", transaction.hash);
 
       await transaction.wait();
 
@@ -238,11 +299,24 @@ function App() {
         return;
       }
 
+      if (selectedRole !== "borrower") {
+        alert("Only the borrower can repay a loan.");
+        return;
+      }
+
+      if (!isCorrectAccountForRole("borrower", account)) {
+        alert("Wrong account. Please use the borrower MetaMask account.");
+        resetApp();
+        return;
+      }
+
       await switchToSepolia();
 
       const transaction = await contract.repayLoan(loanId, {
         value: totalRepayment
       });
+
+      addTransactionHash("Repay Loan", transaction.hash);
 
       await transaction.wait();
 
@@ -261,9 +335,23 @@ function App() {
         return;
       }
 
+      if (selectedRole !== "borrower") {
+        alert("Only the borrower can cancel a loan request.");
+        return;
+      }
+
+      if (!isCorrectAccountForRole("borrower", account)) {
+        alert("Wrong account. Please use the borrower MetaMask account.");
+        resetApp();
+        return;
+      }
+
       await switchToSepolia();
 
       const transaction = await contract.cancelLoan(loanId);
+
+      addTransactionHash("Cancel Loan", transaction.hash);
+
       await transaction.wait();
 
       alert("Loan cancelled.");
@@ -336,25 +424,9 @@ function App() {
   useEffect(() => {
     if (!window.ethereum) return;
 
-    const handleAccountsChanged = async (accounts) => {
-      if (accounts.length === 0) {
-        logout();
-        return;
-      }
-
-      try {
-        await switchToSepolia();
-
-        const lendChain = await setupContract();
-
-        setAccount(accounts[0]);
-        setContract(lendChain);
-
-        const data = await lendChain.getAllLoans();
-        setLoans(data);
-      } catch (error) {
-        console.error("Account change error:", error);
-      }
+    const handleAccountsChanged = () => {
+      alert("MetaMask account changed. Please choose your role and sign in again.");
+      resetApp();
     };
 
     const handleChainChanged = () => {
@@ -387,7 +459,7 @@ function App() {
               onClick={() => setSelectedRole("borrower")}
             >
               <span>Borrower</span>
-              <small>Create a loan request</small>
+              <small>Use borrower account only</small>
             </button>
 
             <button
@@ -395,7 +467,7 @@ function App() {
               onClick={() => setSelectedRole("lender")}
             >
               <span>Lender</span>
-              <small>Fund available loans</small>
+              <small>Use lender account only</small>
             </button>
           </div>
 
@@ -426,7 +498,6 @@ function App() {
 
         <div className="wallet-card">
           <span>Connected Wallet</span>
-          <strong>{shortenAddress(account)}</strong>
           <small>{account}</small>
         </div>
 
@@ -479,6 +550,47 @@ function App() {
               </div>
             </div>
           </div>
+        </section>
+
+        <section className="card">
+          <div className="section-title">
+            <div>
+              <p className="eyebrow">Blockchain Record</p>
+              <h2>Transaction Hash History</h2>
+            </div>
+          </div>
+
+          <p>
+            Every blockchain action generates a transaction hash. This serves as
+            proof that the action happened on Sepolia.
+          </p>
+
+          {transactions.length === 0 ? (
+            <p className="empty-text">No transaction hash recorded yet.</p>
+          ) : (
+            <div className="hash-list">
+              {transactions.map((tx, index) => (
+                <div className="hash-card" key={index}>
+                  <div className="hash-card-top">
+                    <div>
+                      <strong>{tx.type}</strong>
+                      <span>{tx.date}</span>
+                    </div>
+
+                    <a
+                      href={`https://sepolia.etherscan.io/tx/${tx.hash}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View on Etherscan
+                    </a>
+                  </div>
+
+                  <p>{tx.hash}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {selectedRole === "borrower" && (

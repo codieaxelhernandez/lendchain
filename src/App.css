@@ -236,8 +236,10 @@ body {
   display: block;
   margin-top: 8px;
   color: #dbeafe;
-  font-size: 11px;
+  font-size: 12px;
+  line-height: 1.5;
   word-break: break-all;
+  text-align: center;
 }
 
 .switch-btn,
@@ -727,4 +729,68 @@ button {
   button {
     width: 100%;
   }
+
+  .hash-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.hash-card {
+  padding: 20px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #ffffff, #eff6ff);
+  border: 1px solid #dbeafe;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+
+.hash-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.hash-card strong {
+  display: block;
+  color: #0f172a;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.hash-card span {
+  display: block;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.hash-card p {
+  margin: 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 13px;
+  word-break: break-all;
+  font-family: Consolas, Monaco, monospace;
+  border: 1px solid #e2e8f0;
+}
+
+.hash-card a {
+  flex-shrink: 0;
+  display: inline-block;
+  color: #2563eb;
+  font-weight: 900;
+  font-size: 14px;
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #dbeafe;
+}
+
+.hash-card a:hover {
+  background: #bfdbfe;
+  text-decoration: none;
+}
 }
